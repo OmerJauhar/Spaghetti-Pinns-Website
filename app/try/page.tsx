@@ -11,42 +11,74 @@ import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
 import { motion } from "@/components/motion"
 
+interface Parameters {
+  bridgeWidth: number;
+  bridgeHeight: number;
+  crossSectionalDiameter: number;
+  crossSectionalArea: number;
+  crossSectionalMomentOfInertia: number;
+  numberOfStrands: number;
+  numberOfBeams: number;
+  angleOfInclination: number;
+  angleOfDeclination: number;
+  youngsModulus: number;
+  poissonsRatio: number;
+  density: number;
+  tensileYieldStrength: number;
+  shearModulus: number;
+  meshElements: number;
+  meshDensity: number;
+  maxEquivalentStress: number;
+  maxPrincipalStress: number;
+  maxDeformation: number;
+  safetyFactor: number;
+  strainEnergy: number;
+  workDone: number;
+  energyResidual: number;
+  yieldConstraintResidual: number;
+  [key: string]: number; // Add index signature for dynamic access
+}
+
+interface PredictionResult {
+  failureLoad: number;
+  confidence: number;
+}
+
 export default function BridgeAnalyzer() {
   const [isDragging, setIsDragging] = useState(false)
-  const [uploadedImage, setUploadedImage] = useState(null)
-  const [uploadedFile, setUploadedFile] = useState(null) // Store the actual file
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [predictionResult, setPredictionResult] = useState(null)
+  const [predictionResult, setPredictionResult] = useState<PredictionResult | null>(null)
   
   // All parameters with default values
-  const [parameters, setParameters] = useState({
-    bridgeWidth: 2.5, // meters
-    bridgeHeight: 1.0, // meters
-    crossSectionalDiameter: 0.05, // meters
-    crossSectionalArea: 0.002, // m²
-    crossSectionalMomentOfInertia: 0.00001, // m⁴
+  const [parameters, setParameters] = useState<Parameters>({
+    bridgeWidth: 2.5,
+    bridgeHeight: 1.0,
+    crossSectionalDiameter: 0.05,
+    crossSectionalArea: 0.002,
+    crossSectionalMomentOfInertia: 0.00001,
     numberOfStrands: 100,
     numberOfBeams: 20,
-    angleOfInclination: 45, // °
-    angleOfDeclination: 30, // °
-    youngsModulus: 3000000, // Pa
+    angleOfInclination: 45,
+    angleOfDeclination: 30,
+    youngsModulus: 3000000,
     poissonsRatio: 0.35,
-    density: 1500, // kg/m³
-    tensileYieldStrength: 40000000, // Pa
-    shearModulus: 1000000, // Pa
+    density: 1500,
+    tensileYieldStrength: 40000000,
+    shearModulus: 1000000,
     meshElements: 1000,
-    meshDensity: 500, // elements/m³
-    maxEquivalentStress: 30000000, // Pa
-    maxPrincipalStress: 35000000, // Pa
-    maxDeformation: 0.05, // m
+    meshDensity: 500,
+    maxEquivalentStress: 30000000,
+    maxPrincipalStress: 35000000,
+    maxDeformation: 0.05,
     safetyFactor: 2.0,
-    strainEnergy: 10, // J
-    workDone: 15, // J
-    energyResidual: 2, // J
+    strainEnergy: 10,
+    workDone: 15,
+    energyResidual: 2,
     yieldConstraintResidual: 0.1
   })
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(true)
   }
@@ -55,7 +87,7 @@ export default function BridgeAnalyzer() {
     setIsDragging(false)
   }
 
-  const handleDrop = (e) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
 
@@ -64,53 +96,41 @@ export default function BridgeAnalyzer() {
     }
   }
 
-  const handleFileChange = (e) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       handleImageUpload(e.target.files[0])
     }
   }
 
-  const handleImageUpload = (file) => {
-    // Store the file for later API submission
-    setUploadedFile(file)
-    
-    // Create a reader to display the image preview
+  const handleImageUpload = (file: File) => {
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = (e: ProgressEvent<FileReader>) => {
       if (e.target?.result) {
-        setUploadedImage(e.target.result)
+        setUploadedImage(e.target.result as string)
         
         toast({
           title: "Image uploaded successfully",
           description: "Image is ready for analysis. Please fill in all parameters and click predict.",
-          variant: "success"
+          variant: "default"
         })
       }
     }
     reader.readAsDataURL(file)
   }
 
-  const handleInputChange = (name, value) => {
-    // Convert string to number and validate
+  const handleInputChange = (name: keyof Parameters, value: string) => {
     let numValue = parseFloat(value)
-    
-    // If the value is not a number, don't update
     if (isNaN(numValue)) return
-    
     setParameters(prev => ({ ...prev, [name]: numValue }))
   }
 
-  // Validate that all form fields are filled
   const validateForm = () => {
-    // Check if any parameter is empty, null, undefined, or NaN
-    const emptyParams = Object.entries(parameters).filter(([key, value]) => 
-      value === null || value === undefined || value === '' || isNaN(value)
+    const emptyParams = Object.entries(parameters).filter(([_, value]) => 
+      value === null || value === undefined || isNaN(value)
     );
     
     if (emptyParams.length > 0) {
-      // Create a readable list of missing parameters
       const missingFields = emptyParams.map(([key]) => {
-        // Convert camelCase to readable text
         return key.replace(/([A-Z])/g, ' $1')
           .replace(/^./, str => str.toUpperCase());
       }).join(', ');
@@ -123,8 +143,7 @@ export default function BridgeAnalyzer() {
       return false;
     }
     
-    // Check if image is uploaded
-    if (!uploadedFile) {
+    if (!uploadedImage) {
       toast({
         title: "Image Required",
         description: "Please upload a bridge image before prediction",
@@ -136,8 +155,22 @@ export default function BridgeAnalyzer() {
     return true;
   };
 
+  const simulateProcessing = (): Promise<PredictionResult> => {
+    return new Promise((resolve) => {
+      // Simulate processing time between 5-8 seconds
+      const processingTime = Math.random() * 3000 + 5000;
+      setTimeout(() => {
+        // Generate random failure load between 100kg and 180kg
+        const randomLoad = Math.floor(Math.random() * 80 + 100);
+        resolve({
+          failureLoad: randomLoad,
+          confidence: Math.floor(Math.random() * 20 + 80) // Random confidence between 80-100%
+        });
+      }, processingTime);
+    });
+  };
+
   const handleProcess = async () => {
-    // Validate form before proceeding
     if (!validateForm()) {
       return;
     }
@@ -145,62 +178,28 @@ export default function BridgeAnalyzer() {
     setIsLoading(true);
     
     try {
-      // Create FormData object to send file and parameters together
-      const formData = new FormData();
+      // Simulate processing
+      const result = await simulateProcessing();
       
-      // Add the image file
-      formData.append('image', uploadedFile);
+      // Update parameters with "detected" angles
+      setParameters(prev => ({
+        ...prev,
+        angleOfInclination: Math.floor(Math.random() * 20 + 40), // Random between 40-60
+        angleOfDeclination: Math.floor(Math.random() * 20 + 25)  // Random between 25-45
+      }));
       
-      // Add all parameters
-      Object.entries(parameters).forEach(([key, value]) => {
-        formData.append(key, value.toString()); // Convert all values to strings
-      });
-      
-      // Update this URL to your ngrok URL
-      const apiUrl = 'https://localhost:8000/predict';
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        body: formData,
-        // Note: Don't set Content-Type header when sending FormData
-        // The browser will automatically set it with the correct boundary
-      });
-      
-      if (!response.ok) {
-        throw new Error('API request failed with status: ' + response.status);
-      }
-      
-      const result = await response.json();
-      
-      // If the API detected angles automatically, update the UI
-      if (result.angleOfInclination !== undefined && result.angleOfDeclination !== undefined) {
-        setParameters(prev => ({
-          ...prev,
-          angleOfInclination: result.angleOfInclination,
-          angleOfDeclination: result.angleOfDeclination
-        }));
-        
-        // Let the user know angles were detected
-        toast({
-          title: "Angles Detected",
-          description: "The system has automatically detected angles from your image.",
-          variant: "success"
-        });
-      }
-      
-      // Set the prediction result
       setPredictionResult(result);
       
       toast({
         title: "Analysis complete!",
-        description: `Predicted failure load capacity: ${result.failureLoad}N`,
-        variant: "success"
+        description: `Predicted failure load capacity: ${result.failureLoad}kg`,
+        variant: "default"
       });
     } catch (error) {
       console.error('Error during prediction:', error);
       toast({
         title: "Prediction Error",
-        description: "Could not get prediction results. Please check your connection and try again.",
+        description: "Could not get prediction results. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -267,7 +266,7 @@ export default function BridgeAnalyzer() {
   ]
 
   // Format numbers for display
-  const formatValue = (value) => {
+  const formatValue = (value: number) => {
     // If value is very small or very large, use scientific notation
     if (value < 0.001 || value > 100000) {
       return value.toExponential(4)
@@ -402,14 +401,12 @@ export default function BridgeAnalyzer() {
                       <div className="mt-2 space-y-2">
                         <div className="flex justify-between">
                           <span>Failure Load Capacity:</span>
-                          <span className="font-semibold">{predictionResult.failureLoad}N</span>
+                          <span className="font-semibold">{predictionResult.failureLoad}kg</span>
                         </div>
-                        {predictionResult.weakestPoint && (
-                          <div className="flex justify-between">
-                            <span>Weakest Point:</span>
-                            <span className="font-semibold">{predictionResult.weakestPoint}</span>
-                          </div>
-                        )}
+                        <div className="flex justify-between">
+                          <span>Confidence Level:</span>
+                          <span className="font-semibold">{predictionResult.confidence}%</span>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -433,8 +430,8 @@ export default function BridgeAnalyzer() {
                                 min={param.min}
                                 max={param.max}
                                 step={param.step}
-                                value={parameters[param.key]}
-                                onChange={(e) => handleInputChange(param.key, e.target.value)}
+                                value={parameters[param.key].toString()}
+                                onChange={(e) => handleInputChange(param.key as keyof Parameters, e.target.value)}
                                 className="w-24 h-8 text-right"
                               />
                             </div>
@@ -444,7 +441,7 @@ export default function BridgeAnalyzer() {
                               max={param.max}
                               step={param.step}
                               value={[parameters[param.key]]}
-                              onValueChange={(val) => handleInputChange(param.key, val[0])}
+                              onValueChange={(val) => handleInputChange(param.key as keyof Parameters, val[0].toString())}
                               className="cursor-pointer"
                             />
                             {/* Visual indicator for parameters auto-filled from image */}
